@@ -1,6 +1,6 @@
 #!/bin/python3
 # https://www.DIVD.nl
-# Developer by Hidde Smit & Wietse Boonstra
+# Developed by Hidde Smit & Wietse Boonstra
 # Usage: cat ips.txt | python3 ip-whois-mail.py
 # ips.txt 1 ip per line
 # Debugging: sys.stdin = ['1.1.1.1', '8.8.8.8']
