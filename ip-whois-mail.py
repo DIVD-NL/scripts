@@ -16,7 +16,7 @@ for line in sys.stdin:
         result = rdap['objects']
         abusemails = []
         for key, value in result.items():
-            if 'abuse' in value['roles']:
+            if value['roles'] and 'abuse' in value['roles']:
                 for abusemail in value['contact']['email']:
                     abusemails.append(abusemail['value'])
         print (ip,str(abusemails)[1:-1].replace(' ', ''),sep=',')
