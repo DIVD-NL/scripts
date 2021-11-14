@@ -34,7 +34,8 @@ def abuse_from_whois(ip):
 			if value['roles'] and 'abuse' in value['roles']:
 				for abusemail in value['contact']['email']:
 					abusemails.append(abusemail['value'])
-		return str(abusemails)[1:-1].replace(' ', '').replace("'", "")
+		mails = list(set(abusemails))
+		return str(mails)[1:-1].replace(' ', '').replace("'", "")
 	except KeyboardInterrupt:
 		sys.exit()
 	except Exception as e:
