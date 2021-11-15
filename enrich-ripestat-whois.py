@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import progressbar
 import requests
 import os
 from ipwhois import IPWhois
@@ -47,10 +46,10 @@ def get_info(line) :
 
 		abuse_reply = rest_get("abuse-contact-finder",line)
 		contacts = []
-		if 'anti_abuse_contacts' in abuse_reply and 'abuse_c' in abuse_reply['anti_abuse_contacts']:
-			contacts = abuse_reply['anti_abuse_contacts']['abuse_c']
+		if 'abuse_contacts' in abuse_reply:
+			contacts = abuse_reply['abuse_contacts']
 		if len(contacts) > 0 :
-			abuse_email = contacts[0]['email']
+			abuse_email = contacts[0]
 			abuse_source = "ripeSTAT"
 		else:
 			whoisabuse = abuse_from_whois(line)
@@ -117,7 +116,9 @@ if args.output :
 
 if args.output :
 	outfile.write('ip,abuse,prefix,asn,holder,country,city,abuse_source\n')
+	outfile.flush()
 print('ip,abuse,prefix,asn,holder,country,city,abuse_source')
+sys.stdout.flush()
 for f in files:
 	if os.path.isfile(f):
 		file = open(f,"r")
