@@ -56,7 +56,7 @@ else
         cat "$1" | jq -r ". | .ip_str +\",\"+(.port|tostring)" |sort -u > ip-port.txt
 fi
 
-for PORT in $(cat ip-port.txt |awk -F"," '{print $2}' ); do
+for PORT in $(cat ip-port.txt |awk -F"," '{print $2}' |sort -u ); do
         grep ",$PORT$" ip-port.txt | sed 's/\"//g' | awk -F"," '{print $1}' | sort -u | tee "targets_$PORT.txt" > /dev/null  
         HOSTCOUNT=$(cat targets_$PORT.txt|wc -l)
         echo "===== $PORT =====" >> $ZGRABSLOG
