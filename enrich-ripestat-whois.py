@@ -9,15 +9,15 @@ from multiprocessing import Process, Queue
 
 sourceapp = "AS50559-DIVD_NL"
 
-def rest_get(call,resource,retries=3):
+def rest_get(call,resource,session,retries=3):
 	url = "https://stat.ripe.net/data/{}/data.json?resource={}&sourceapp={}".format(call,resource,sourceapp)
 	try:
-		response = requests.get(url, timeout = 1)
+		response = session.get(url, timeout = 1)
 	except KeyboardInterrupt:
 		sys.exit()
 	except:
 		if retries > 0:
-			return rest_get(call,resource,retries-1)
+			return rest_get(call,resource,session,retries-1)
 		else:
 			return "Timeout"
 	reply = response.json()
@@ -61,10 +61,12 @@ def worker(in_q, out_q):
 
 
 def get_info(line):
+	session = requests.Session()
+
 	# Get abuse info
 	# https://stat.ripe.net/data/abuse-contact-finder/data.<format>?<parameters>
 
-	abuse_reply = rest_get("abuse-contact-finder",line)
+	abuse_reply = rest_get("abuse-contact-finder",line,session)
 	contacts = []
 	if 'abuse_contacts' in abuse_reply:
 		contacts = abuse_reply['abuse_contacts']
@@ -83,7 +85,7 @@ def get_info(line):
 	# Get ASN
 	# https://stat.ripe.net/data/network-info/data.json?resource=194.5.73.5
 
-	asn_reply = rest_get("network-info",line)
+	asn_reply = rest_get("network-info",line,session)
 	asn = "unknown"
 	prefix = "unknown"
 	if 'asns' in asn_reply:
@@ -94,7 +96,7 @@ def get_info(line):
 		if asn in asns:
 			asn_data = asns[asn]
 		else:
-			asn_data = rest_get("as-overview",asn)
+			asn_data = rest_get("as-overview",asn,session)
 			asns[asn] = asn_data
 
 		holder = asn_data['holder']
@@ -106,7 +108,7 @@ def get_info(line):
 		if prefix in locations:
 			location_data = locations[prefix]
 		else:
-			location_data = rest_get("maxmind-geo-lite",prefix)
+			location_data = rest_get("maxmind-geo-lite",prefix,session)
 
 		city=location_data['located_resources'][0]['locations'][0]['city']
 		country=location_data['located_resources'][0]['locations'][0]['country']
