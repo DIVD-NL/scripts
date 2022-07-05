@@ -6,6 +6,7 @@ import os
 from ipwhois import IPWhois
 import sys
 from multiprocessing import Process, Queue
+import random
 
 sourceapp = "AS50559-DIVD_NL"
 
@@ -30,12 +31,29 @@ def abuse_from_whois(ip):
 		rdap = obj.lookup_rdap(depth=2)
 		result = rdap['objects']
 		abusemails = []
+		othermails = []
 		for key, value in result.items():
-			if value['roles'] and 'abuse' in value['roles']:
+			# Find and officially designated contact
+			if value['roles'] and 'abuse' in value['roles'] :
 				for abusemail in value['contact']['email']:
 					abusemails.append(abusemail['value'])
+			else :
+				for mail in value['contact']['email'] :
+					# Guess at an abuse contact
+					if 'abuse' in mail['value']:
+						abusemails.append(mail['value'])
+					else :
+						othermails.append(mail['value'])
 		mails = list(set(abusemails))
-		return str(mails)[1:-1].replace(' ', '').replace("'", "")
+		abuse = str(mails)[1:-1].replace(' ', '').replace("'", "")
+		if abuse:
+			# Return a abuse contact
+			return abuse
+		else :
+			# Just pick an email from whois
+			mails = list(set(othermails))
+			return random.choice(mails)
+
 	except KeyboardInterrupt:
 		sys.exit()
 	except Exception as e:
