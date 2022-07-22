@@ -87,7 +87,7 @@ def worker(in_q, out_q):
 			if task["retry"] > 0:
 				task["retry"] = task["retry"] - 1
 			else:
-				out_q.put('"{}","Error while resolving"'.format(taks["line"]))
+				out_q.put('"{}","Error while resolving"'.format(task["line"]))
 		else:
 			task = in_q.get()
 	out_q.put("DONE")
