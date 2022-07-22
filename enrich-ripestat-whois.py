@@ -32,18 +32,32 @@ def abuse_from_whois(ip):
 		result = rdap['objects']
 		abusemails = []
 		othermails = []
-		for key, value in result.items():
-			# Find and officially designated contact
-			if value['roles'] and 'abuse' in value['roles'] :
-				for abusemail in value['contact']['email']:
-					abusemails.append(abusemail['value'])
-			else :
-				for mail in value['contact']['email'] :
-					# Guess at an abuse contact
-					if 'abuse' in mail['value']:
-						abusemails.append(mail['value'])
-					else :
-						othermails.append(mail['value'])
+		if result:
+			for key in result.keys():
+				data = result[key]
+				if 'roles' in data and data['roles'] and 'abuse' in data['roles']:
+					if data['contact'] and data['contact']['email']:
+						for email in data['contact']['email']:
+							abusemails.append(email['value'])
+				else :
+					if 'contact' in data and data['contact'] and data['contact']['email']:
+						for email in data['contact']['email']:
+							if 'abuse' in email['value']:
+								abusemails.append(email['value'])
+							else :
+								othermails.append(email['value'])
+
+		else :
+			whois = obj.lookup_whois()
+			if whois['nets']:
+				for net in whois['nets']:
+					if net['emails']:
+						for email in net['emails']:
+							if 'abuse' in email:
+								abusemails.append(email)
+							else :
+								othermails.append(email)
+
 		mails = list(set(abusemails))
 		abuse = str(mails)[1:-1].replace(' ', '').replace("'", "")
 		if abuse:
@@ -57,6 +71,7 @@ def abuse_from_whois(ip):
 	except KeyboardInterrupt:
 		sys.exit()
 	except Exception as e:
+		sys.stderr.write(e)
 		return None
 
 def worker(in_q, out_q):
@@ -72,7 +87,7 @@ def worker(in_q, out_q):
 			if task["retry"] > 0:
 				task["retry"] = task["retry"] - 1
 			else:
-				out_q.put('"{}","Error while resolving"'.format(taks["line"]))
+				out_q.put('"{}","Error while resolving"'.format(task["line"]))
 		else:
 			task = in_q.get()
 	out_q.put("DONE")
