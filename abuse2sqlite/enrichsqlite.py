@@ -24,9 +24,25 @@ def enrich(ip, cur, conn) :
             return data[0]
         else:
             return []
+    elif valid_ipv6(ip) :
+        v6 = IPAddress(ip, 6)
+        v6str = str(hex(int(int(v6)/0x10000000000000000)))
+        res = cur.execute("""
+            SELECT ipv6.country, ipv6.asn, ipv6.asn_name, ipv6.asn_domain, asns.abuse, asns.source, asns.status, timestamp
+            FROM ipv6
+            LEFT JOIN asns
+                ON ipv6.asn = asns.asn
+            WHERE
+                start <= ? AND end >= ?
+        """, [ v6str, v6str ])
+        data = res.fetchall()
+        if len(data) > 0 :
+            return data[0]
+        else:
+            return []
     else:
         if verbose > 1:
-            print("Not ipv4: '{}'".format(ip), file=sys.stderr)
+            print("Not ipv4 or ipv6: '{}'".format(ip), file=sys.stderr)
         return []
 
 
