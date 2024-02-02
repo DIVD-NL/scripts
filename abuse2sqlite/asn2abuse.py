@@ -20,6 +20,9 @@ sourceapp = "AS50559-DIVD_NL"
 running = True
 
 def process_task(task,out_queue,task_queue,threads) :
+    global verbose
+    if verbose > 2:
+        print("Processing task '{}'".format(task))
     if threads == 1 :
         result = abuse_from_asn(task["asn"],verbose)
         out_queue.put(result)
@@ -99,33 +102,44 @@ if __name__ == '__main__':
         print("There is no asns table in database '{}'".format(args.sqlite),file=sys.stderr)
         exit(1)
 
+    # Set up queues
+    task_queue = queue.Queue()
+    out_queue  = queue.Queue()
 
     # Fill task_queue
+    if verbose > 1:
+        print("Getting tasks...")
     res = cur.execute("""
-        SELECT DISTINCT asn
-        FROM ips
-        WHERE ips.asn NOT IN (
+        SELECT DISTINCT * FROM (
+            SELECT DISTINCT asn
+            FROM ips
+            UNION ALL
+            SELECT DISTINCT asn
+            FROM ipv6
+        )
+        WHERE asn IN (
             SELECT asn
             FROM ASNS
-            WHERE timestamp >= date('now','-30 days') OR status <> 'error'
+            WHERE timestamp <= date('now','-30 days') or (status == 'error' and timestamp <> date('now'))
         )
-        UNION
-        SELECT DISTINCT asn
-        FROM ipv6
-        WHERE ips.asn NOT IN (
-            SELECT asn
-            FROM ASNS
-            WHERE timestamp >= date('now','-30 days') OR status <> 'error'
-        )
+        ORDER BY random();
     """)
     task_count = 0
     for record in res.fetchall() :
         task_queue.put({ "asn" : record[0], "retry" : args.retry })
         task_count = task_count+1
 
+    if verbose > 0 :
+        print("Enrichment of {} asns started.".format(task_count))
+
+    # Spawn worker threads
+    threads=[]
+    if args.threads > 1:
+        for i in range(args.threads):
+            threads.append(threading.Thread(target=worker, args=(task_queue, out_queue, args.threads), daemon=True).start())
+
     # Setup progress bar
     if verbose == 1:
-        print("\nPhase 2:")
         widgets = [
             progressbar.Percentage(),
             progressbar.Bar(),
@@ -137,8 +151,8 @@ if __name__ == '__main__':
 
 
     running = True
-    bar_update = 0
     done = 0
+    bar_update = 0
     while running:
         if args.threads == 1:
             task = task_queue.get()
@@ -157,7 +171,7 @@ if __name__ == '__main__':
                 if res.fetchall()[0][0] == 0 :
                     cur.execute("INSERT INTO asns (asn, status, error, timestamp) VALUES ( ?, 'error', ?, date('now'));",[ result["asn"], result["error"] ])
                 else:
-                    cur.execute("UPDATE asns set status='error', error=?, timestamp=date('now') WHERE asn=?;", [ result["asn"], result["error"] ] )
+                    cur.execute("UPDATE asns set status='error', error=?, timestamp=date('now') WHERE asn=?;", [ result["error"], result["asn"] ] )
             elif result["abuse"] == "Not found" or not result["abuse"] :
                 res = cur.execute("SELECT count(*) FROM asns WHERE asn = ?",[ result["asn"] ] )
                 if res.fetchall()[0][0] == 0 :
@@ -179,14 +193,14 @@ if __name__ == '__main__':
                     )
                 else:
                     cur.execute("UPDATE asns set abuse=?, status='ok', timestamp=date('now') WHERE asn=?;",[ result["abuse"], result["asn"]])
-            done=done+1
+            done = done + 1
             count = count + 1
         if count > 0 :
             conn.commit()
             if verbose == 1:
-                if bar_update < 5 and args.threads != 1:
-                    bar_update = bar_update+1
-                else :
+                if bar_update < 5 and args.threads != 1 :
+                    bar_update=bar_update+1
+                else:
                     bar_update=0
                     bar.update(done)
         if task_queue.empty() and out_queue.empty() and done == task_count :

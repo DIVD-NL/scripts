@@ -62,7 +62,8 @@ if __name__ == '__main__':
                 country varchar(2),
                 asn varchar(10),
                 asn_name varchar(100),
-                asn_domain varchar(100)
+                asn_domain varchar(100),
+                FOREIGN KEY (asn) REFERENCES asns(asn)
              );
         """)
         cur.execute("CREATE INDEX ips_ip on ips ( ip );")
@@ -78,7 +79,8 @@ if __name__ == '__main__':
                 country varchar(2),
                 asn varchar(10),
                 asn_name varchar(100),
-                asn_domain varchar(100)
+                asn_domain varchar(100),
+                FOREIGN KEY (asn) REFERENCES asns(asn)
              );
         """)
         cur.execute("CREATE INDEX ipv6_start on ipv6 ( start );")
@@ -105,7 +107,6 @@ if __name__ == '__main__':
 
     # Setup progress bar
     if verbose == 1:
-        print("Phase 1:")
         widgets = [
             progressbar.Percentage(),
             progressbar.Bar(),
