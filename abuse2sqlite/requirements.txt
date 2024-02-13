@@ -1,0 +1,7 @@
+requests
+argparse
+progressbar2
+maxminddb
+sqlite3
+queue
+threading

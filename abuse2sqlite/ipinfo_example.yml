@@ -1,0 +1,3 @@
+ipinfo:
+  url: https://ipinfo.io/data/free/country_asn.json.gz
+  token : 1234abc1234abc
