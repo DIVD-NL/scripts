@@ -86,8 +86,9 @@ def worker(in_q, out_q):
 			# Retry:
 			if task["retry"] > 0:
 				task["retry"] = task["retry"] - 1
+				out_q.put('"{}","Error while resolving, {} retries left"'.format(task["line"],task["retry"]))
 			else:
-				out_q.put('"{}","Error while resolving"'.format(task["line"]))
+				task = in_q.get()
 		else:
 			task = in_q.get()
 	out_q.put("DONE")
@@ -101,6 +102,9 @@ def get_info(line):
 
 	abuse_reply = rest_get("abuse-contact-finder",line,session)
 	contacts = []
+	rir = ""
+	if "authoritative_rir" in abuse_reply:
+		rir = abuse_reply["authoritative_rir"]
 	if 'abuse_contacts' in abuse_reply:
 		contacts = abuse_reply['abuse_contacts']
 	if len(contacts) > 0 :
@@ -122,7 +126,8 @@ def get_info(line):
 	asn = "unknown"
 	prefix = "unknown"
 	if 'asns' in asn_reply:
-		asn = asn_reply['asns'][0]
+        if len(asn_reply['asns']) > 0 :
+            asn = asn_reply['asns'][0]
 		prefix = asn_reply['prefix']
 
 		# Get ASN info
@@ -149,78 +154,78 @@ def get_info(line):
 		city = "unknown"
 		country = "unknown"
 
-	return'"{}","{}","{}","{}","{}","{}","{}","{}"'.format(line,abuse_email,prefix,asn,holder,country,city,abuse_source)
+	return'"{}","{}","{}","{}","{}","{}","{}","{}","{}"'.format(line,abuse_email,prefix,asn,holder,country,city,abuse_source,rir)
 
 
-
-
-parser = argparse.ArgumentParser(description='Get abuse and location information for IPs', allow_abbrev=False)
-parser.add_argument('input', type=str, metavar="INPUT.txt", nargs="*", default="/dev/stdin", help="Either a list files with one IP address per line or a IP address [default: stdin]")
-parser.add_argument('--output', "-o", type=str, metavar="OUTPUT.csv", help="output csv file")
-parser.add_argument('--threads', "-t", type=int, metavar="N", default=8, help="Number of request threads [default: 8]")
-parser.add_argument('--retry', "-r", type=int, metavar="N", default=3, help="Number of retries for failed queries [default: 3]")
-
-args = parser.parse_args()
-
-# Set up queues
-task_queue = Queue()
-out_queue  = Queue()
-
-# Shared variables
+# Process level global variables
 asns = {}
 locations = {}
 
-# Spawn worker threads
-for i in range(args.threads):
-	Process(target=worker, args=(task_queue, out_queue), daemon=True).start()
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser(description='Get abuse and location information for IPs', allow_abbrev=False)
+	parser.add_argument('input', type=str, metavar="INPUT.txt", nargs="*", default="/dev/stdin", help="Either a list files with one IP address per line or a IP address [default: stdin]")
+	parser.add_argument('--output', "-o", type=str, metavar="OUTPUT.csv", help="output csv file")
+	parser.add_argument('--threads', "-t", type=int, metavar="N", default=8, help="Number of request threads [default: 8]")
+	parser.add_argument('--retry', "-r", type=int, metavar="N", default=3, help="Number of retries for failed queries [default: 3]")
 
-# Read input and submit to queue
-if isinstance(args.input,str):
-	files = [args.input]
-else :
-	files = args.input
+	args = parser.parse_args()
 
-for f in files:
-	if os.path.isfile(f) or f == "/dev/stdin":
-		file = open(f,"r")
-		for line in file.readlines():
-			line = line.strip()
+	# Set up queues
+	task_queue = Queue()
+	out_queue  = Queue()
+
+
+	# Spawn worker threads
+	for i in range(args.threads):
+		Process(target=worker, args=(task_queue, out_queue), daemon=True).start()
+
+	# Read input and submit to queue
+	if isinstance(args.input,str):
+		files = [args.input]
+	else :
+		files = args.input
+
+	for f in files:
+		if os.path.isfile(f) or f == "/dev/stdin":
+			file = open(f,"r")
+			for line in file.readlines():
+				line = line.strip()
+				task = {
+					"line" : line,
+					"retry" : args.retry
+				}
+				task_queue.put(task)
+			file.close()
+		else:
 			task = {
-				"line" : line,
+				"line" : f,
 				"retry" : args.retry
 			}
 			task_queue.put(task)
-		file.close()
-	else:
-		task = {
-			"line" : f,
-			"retry" : args.retry
-		}
-		task_queue.put(task)
 
-# Tell workers to stop when done.
-for i in range(args.threads):
-	task_queue.put("STOP")
+	# Tell workers to stop when done.
+	for i in range(args.threads):
+		task_queue.put("STOP")
 
-# Write
-if args.output :
-	outfile = open(args.output,"w")
-	outfile.write('ip,abuse,prefix,asn,holder,country,city,abuse_source\n')
-	outfile.flush()
+	# Write
+	if args.output :
+		outfile = open(args.output,"w")
+		outfile.write('ip,abuse,prefix,asn,holder,country,city,abuse_source,rir\n')
+		outfile.flush()
 
-workers = args.threads
-print('ip,abuse,prefix,asn,holder,country,city,abuse_source')
-sys.stdout.flush()
-while workers > 0:
-	line = out_queue.get()
-	if line == "DONE":
-		workers = workers - 1
-	else:
-		if args.output:
-			outfile.write("{}\n".format(line))
-			outfile.flush()
-		print(line)
-		sys.stdout.flush()
+	workers = args.threads
+	print('ip,abuse,prefix,asn,holder,country,city,abuse_source')
+	sys.stdout.flush()
+	while workers > 0:
+		line = out_queue.get()
+		if line == "DONE":
+			workers = workers - 1
+		else:
+			if args.output:
+				outfile.write("{}\n".format(line))
+				outfile.flush()
+			print(line)
+			sys.stdout.flush()
 
-if args.output :
-	outfile.close()
+	if args.output :
+		outfile.close()

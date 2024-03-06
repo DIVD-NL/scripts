@@ -117,10 +117,14 @@ if __name__ == '__main__':
             SELECT DISTINCT asn
             FROM ipv6
         )
-        WHERE asn IN (
+        WHERE asn NOT IN (
             SELECT asn
             FROM ASNS
-            WHERE timestamp <= date('now','-30 days') or (status == 'error' and timestamp <> date('now'))
+            WHERE timestamp > date('now','-30 days')
+        ) OR asn IN (
+            SELECT asn
+            FROM ASNS
+            WHERE status = 'error' and timestamp <> date('now')
         )
         ORDER BY random();
     """)
