@@ -4,6 +4,9 @@ import sqlite3
 import argparse
 import sys
 import re
+import csv
+import json
+import jq
 from netaddr import *
 
 
@@ -52,9 +55,11 @@ if __name__ == '__main__':
         epilog='If no file and no IP addresses are given, the IP addresses are read from stdin',
         allow_abbrev=False
     )
-    parser.add_argument("--sqlite", "-s", type=str, metavar="abuse.sqlite3", required=False, default="abuse.sqlite3", help="Path of the sqlite database")
+    parser.add_argument("--sqlite", "-s", type=str, metavar="abuse.sqlite3", required=False, default="/opt/enrich/abuse.sqlite3", help="Path of the sqlite database")
     parser.add_argument("--infile", "-i", type=str, metavar="ips.txt", required=False, default="", help="Path of a file of ip addresses to enricht one per line")
     parser.add_argument('--verbose', '-v', action="count", default=1, help="Be (more) verbose" )
+    parser.add_argument('--csv', type=str, metavar='ip', required=False, default="ip", help="CSV field containing the IP address (if --infile arugment ends in .csv)")
+    parser.add_argument('--jq', type=str, metavar='.ip', required=False, default=".ip", help="jq query to find IP address in json record (if --infile argument ends in .json)")
     parser.add_argument('--quiet', '-q', action="store_true", help="Be quiet" )
     parser.add_argument('ips', metavar='IP', type=str, nargs='*', help='IP addresses to enrich')
 
@@ -73,31 +78,82 @@ if __name__ == '__main__':
         exit(1)
     cur = conn.cursor()
 
-    try :
-        cur.execute("select count(*) from ips left join asns on ips.asn = asns.asn")
-    except Exception as e:
-        print("\nDatabase '{}', does nto contain the right tables. Error is '{}'".format(args.sqlite,str(e)), file=sys.stderr)
-        exit(1)
-
-
-    if verbose :
-        print('"ip","country","asn","asn_name","asn_domain","abuse","abuse_source","abuse_status","abuse_timestamp"')
 
     infile = None
     if len(args.ips) == 0 and not args.infile:
         infile = sys.stdin
     elif args.infile :
-        infile = open(infile,"r")
+        infile = open(args.infile,"r")
+
 
     if infile:
-        for ip in infile:
-            ip = ip.strip()
-            res = enrich(ip, cur, conn)
-            if res and len(res) > 0 :
-                fields = []
-                for field in res:
-                    fields.append(str(field))
-                print('"{}","{}"'.format(ip,'","'.join(fields)))
+        if args.infile.endswith(".csv") :
+            csvreader = csv.DictReader(infile)
+            fieldnames = []
+            csvwriter = None
+            for row in csvreader:
+                if not args.csv in row :
+                    print(row)
+                    print("\nCSV file '{}', does not contain field '{}'".format(args.infile,args.csv), file=sys.stderr)
+                    exit(1)
+                if len(fieldnames) == 0 :
+                    fieldnames = list(row.keys())
+                    fieldnames = fieldnames + ["country","asn","asn_name","asn_domain","abuse","abuse_source","abuse_status","abuse_timestamp"]
+                    csvwriter = csv.DictWriter(sys.stdout,fieldnames=fieldnames)
+                    if verbose:
+                        csvwriter.writeheader()
+                if(row[args.csv]) :
+                    res= enrich(row[args.csv], cur, conn)
+                    if len(res) == 8:
+                        row["country"] = res[0]
+                        row["asn"] = res[1]
+                        row["asn_name"] = res[2]
+                        row["asn_domain"] = res[3]
+                        row["abuse"] = res[4]
+                        row["abuse_source"] = res[5]
+                        row["abuse_status"] = res[6]
+                        row["abuse_timestamp"] = res[7]
+                        csvwriter.writerow(row)
+                    elif len(res) == 0 :
+                        csvwriter.writerow(row)
+                    else:
+                        print("Incorrect result '{}' from row '{}".format(res,row), file=sys.stderr)
+                        exit(1)
+        elif args.infile.endswith(".json") :
+            # Compile jq string
+            jqc = jq.compile(args.jq)
+            for row in infile:
+                record = json.loads(row)
+                ip =  jq.compile(".ip").input_value(record).first()
+                if ip:
+                    res=enrich(ip, cur, conn)
+                    record["enriched"] = {}
+                    record["enriched"]["ip"] = ip
+                    if len(res) == 8:
+                        record["enriched"]["country"] = res[0]
+                        record["enriched"]["asn"] = res[1]
+                        record["enriched"]["asn_name"] = res[2]
+                        record["enriched"]["asn_domain"] = res[3]
+                        record["enriched"]["abuse"] = res[4]
+                        record["enriched"]["abuse_source"] = res[5]
+                        record["enriched"]["abuse_status"] = res[6]
+                        record["enriched"]["abuse_timestamp"] = res[7]
+                    elif len(res) == 0:
+                        pass
+                    else:
+                        print("Incorrect result '{}' from ip '{}".format(res,ip), file=sys.stderr)
+                    print(json.dumps(record))
+        else:
+            if verbose :
+                print('"ip","country","asn","asn_name","asn_domain","abuse","abuse_source","abuse_status","abuse_timestamp"')
+            for ip in infile:
+                ip = ip.strip()
+                res = enrich(ip, cur, conn)
+                if res and len(res) > 0 :
+                    fields = []
+                    for field in res:
+                        fields.append(str(field))
+                    print('"{}","{}"'.format(ip,'","'.join(fields)))
         if infile is not sys.stdin:
             infile.close()
 
