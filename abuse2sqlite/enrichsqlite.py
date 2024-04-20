@@ -56,7 +56,7 @@ if __name__ == '__main__':
         allow_abbrev=False
     )
     parser.add_argument("--sqlite", "-s", type=str, metavar="abuse.sqlite3", required=False, default="/opt/enrich_sqlite/abuse.sqlite3", help="Path of the sqlite database")
-    parser.add_argument("--infile", "-i", type=str, metavar="ips.txt, ips.csv or ips.json", required=False, default="", help="Path of a file of ip addresses to enricht one per line")
+    parser.add_argument("--infile", "-i", type=str, metavar="nuclei.json", required=False, default="", help="Path of a input file. It can be a text file with one ip address per line, a csv file or a json file with one record per line")
     parser.add_argument('--verbose', '-v', action="count", default=1, help="Be (more) verbose" )
     parser.add_argument('--csv', type=str, metavar='ip', required=False, default="ip", help="CSV field containing the IP address (if --infile arugment ends in .csv)")
     parser.add_argument('--jq', type=str, metavar='.ip', required=False, default=".ip", help="jq query to find IP address in json record (if --infile argument ends in .json)")
