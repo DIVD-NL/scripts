@@ -93,7 +93,6 @@ if __name__ == '__main__':
             csvwriter = None
             for row in csvreader:
                 if not args.csv in row :
-                    print(row)
                     print("\nCSV file '{}', does not contain field '{}'".format(args.infile,args.csv), file=sys.stderr)
                     exit(1)
                 if len(fieldnames) == 0 :
@@ -124,7 +123,7 @@ if __name__ == '__main__':
             jqc = jq.compile(args.jq)
             for row in infile:
                 record = json.loads(row)
-                ip =  jq.compile(".ip").input_value(record).first()
+                ip =  jqc.transform(record)
                 if ip:
                     res=enrich(ip, cur, conn)
                     record["enriched"] = {}
