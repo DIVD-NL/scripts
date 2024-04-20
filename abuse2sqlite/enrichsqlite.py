@@ -55,7 +55,7 @@ if __name__ == '__main__':
         epilog='If no file and no IP addresses are given, the IP addresses are read from stdin',
         allow_abbrev=False
     )
-    parser.add_argument("--sqlite", "-s", type=str, metavar="abuse.sqlite3", required=False, default="/opt/enrich/abuse.sqlite3", help="Path of the sqlite database")
+    parser.add_argument("--sqlite", "-s", type=str, metavar="abuse.sqlite3", required=False, default="/opt/enrich_sqlite/abuse.sqlite3", help="Path of the sqlite database")
     parser.add_argument("--infile", "-i", type=str, metavar="ips.txt", required=False, default="", help="Path of a file of ip addresses to enricht one per line")
     parser.add_argument('--verbose', '-v', action="count", default=1, help="Be (more) verbose" )
     parser.add_argument('--csv', type=str, metavar='ip', required=False, default="ip", help="CSV field containing the IP address (if --infile arugment ends in .csv)")
